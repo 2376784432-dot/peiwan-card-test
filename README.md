@@ -30,8 +30,14 @@ Workers KV：peiwan-card-content（key: content）
 把这条私密链接单独发给客户（不要放在公开页面）：
 
 ```text
+# 推荐（token 不进服务器日志）
 https://2376784432-dot.github.io/peiwan-card-test/#edit=<EDIT_TOKEN>
+
+# 兼容（部分微信/内置浏览器会截掉 # 后面的内容）
+https://2376784432-dot.github.io/peiwan-card-test/?edit=<EDIT_TOKEN>
 ```
+
+如果手机微信打开后看不到「编辑文字」，优先换用 `?edit=` 版本；或复制到手机浏览器打开。
 
 客户打开后：
 

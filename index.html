@@ -5,6 +5,7 @@
 <meta name="theme-color" content="#05060a">
 <meta name="description" content="三只黑鸟 · 三恋陪玩点单资料：病恋、虐恋、虚恋。先了解我的连接方式与边界，再决定要不要靠近。">
 <meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
 <meta property="og:title" content="三只黑鸟 · 三恋陪玩点单资料">
 <meta property="og:description" content="病恋 / 虐恋 / 虚恋：先了解我的连接方式与边界，再决定要不要靠近。">
 <meta property="og:type" content="website">
@@ -3714,8 +3715,11 @@ body.is-editing .edit-toggle{
   if (editToolbar && editToggle && editPanel) {
     const hostedView = window.location.protocol === "http:" || window.location.protocol === "https:";
     const shareView = new URLSearchParams(window.location.search).get("share");
+    const pageParams = new URLSearchParams(window.location.search);
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-    const cloudToken = hashParams.get("edit") || "";
+    // Hash keeps the token out of server logs; query is a fallback for apps that
+    // strip the #fragment when opening a link (some in-app browsers do).
+    const cloudToken = hashParams.get("edit") || pageParams.get("edit") || "";
     const cloudMode = hostedView && Boolean(CARD_API) && Boolean(cloudToken) && shareView !== "1" && shareView !== "true";
     const remotePublic = hostedView && Boolean(CARD_API);
 
