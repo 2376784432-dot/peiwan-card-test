@@ -3,8 +3,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#05060a">
-<meta name="robots" content="noindex,nofollow">
 <meta name="description" content="三只黑鸟 · 三恋陪玩点单资料：病恋、虐恋、虚恋。先了解我的连接方式与边界，再决定要不要靠近。">
+<meta name="robots" content="noindex,nofollow">
 <meta property="og:title" content="三只黑鸟 · 三恋陪玩点单资料">
 <meta property="og:description" content="病恋 / 虐恋 / 虚恋：先了解我的连接方式与边界，再决定要不要靠近。">
 <meta property="og:type" content="website">
@@ -3266,7 +3266,7 @@ body.is-editing .edit-toggle{
 <!-- =======================================================
      Inline text editor (saved to browser / exported to HTML)
      ======================================================= -->
-<div class="edit-toolbar" id="editToolbar">
+<div class="edit-toolbar" id="editToolbar" hidden>
   <button class="edit-toggle" id="editToggle" type="button" aria-expanded="false" aria-controls="editPanel">
     <span class="edit-pencil" aria-hidden="true">✎</span>
     <span id="editToggleLabel">编辑文字</span>
@@ -3289,6 +3289,10 @@ body.is-editing .edit-toggle{
 <script>
 (() => {
   "use strict";
+
+  // Cloudflare Worker API for hosted text editing.
+  // Leave empty to disable remote content (the page still uses its inline fallback text).
+  const CARD_API = "https://peiwan-card-api.2376784432.workers.dev";
 
   const scene = document.getElementById("scene");
   const worlds = Array.from(document.querySelectorAll(".world"));
@@ -3710,10 +3714,14 @@ body.is-editing .edit-toggle{
   if (editToolbar && editToggle && editPanel) {
     const hostedView = window.location.protocol === "http:" || window.location.protocol === "https:";
     const shareView = new URLSearchParams(window.location.search).get("share");
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const cloudToken = hashParams.get("edit") || "";
+    const cloudMode = hostedView && Boolean(CARD_API) && Boolean(cloudToken) && shareView !== "1" && shareView !== "true";
+    const remotePublic = hostedView && Boolean(CARD_API);
+
     if (hostedView || shareView === "1" || shareView === "true") {
       editToolbar.hidden = true;
       editToolbar.style.display = "none";
-      return;
     }
 
     const EDIT_SELECTORS = [
@@ -3773,6 +3781,10 @@ body.is-editing .edit-toggle{
     let editMode = false;
     let editables = [];
     let saveTimer = 0;
+    let cloudEditing = false;
+    let cloudDirty = false;
+    let cloudSaving = false;
+    let cloudSavedAt = "";
 
     function setEditStatus(message) {
       if (editStatus) editStatus.textContent = message;
@@ -3839,10 +3851,248 @@ body.is-editing .edit-toggle{
     }
 
     function handleEditPaste(event) {
-      if (!editMode) return;
+      if (!editMode && !cloudEditing) return;
       event.preventDefault();
       const text = (event.clipboardData || window.clipboardData).getData("text/plain");
       document.execCommand("insertText", false, text);
+    }
+
+    /* -----------------------------------------------------
+       Cloud (Cloudflare Worker) content
+       ----------------------------------------------------- */
+    const ALLOWED_RICH_TAGS = new Set(["BR", "EM", "STRONG", "B", "I", "U", "SPAN", "SMALL"]);
+    const BLOCK_RICH_TAGS = new Set(["DIV", "P", "LI", "UL", "OL"]);
+    const DROP_RICH_TAGS = new Set(["SCRIPT", "STYLE", "IFRAME", "OBJECT", "EMBED", "LINK", "META", "IMG", "SVG", "VIDEO", "AUDIO", "FORM", "INPUT", "BUTTON"]);
+
+    function sanitizeRichText(html) {
+      if (typeof html !== "string") return "";
+      const template = document.createElement("template");
+      template.innerHTML = html;
+
+      function clean(node) {
+        if (node.nodeType === Node.TEXT_NODE) return document.createTextNode(node.nodeValue);
+        if (node.nodeType !== Node.ELEMENT_NODE) return null;
+
+        const tag = node.tagName;
+        if (DROP_RICH_TAGS.has(tag)) return null;
+
+        if (BLOCK_RICH_TAGS.has(tag)) {
+          const frag = document.createDocumentFragment();
+          node.childNodes.forEach(child => {
+            const cleaned = clean(child);
+            if (cleaned) frag.appendChild(cleaned);
+          });
+          if (tag === "DIV" || tag === "P" || tag === "LI") {
+            frag.appendChild(document.createElement("br"));
+          }
+          return frag;
+        }
+
+        if (!ALLOWED_RICH_TAGS.has(tag)) {
+          const frag = document.createDocumentFragment();
+          node.childNodes.forEach(child => {
+            const cleaned = clean(child);
+            if (cleaned) frag.appendChild(cleaned);
+          });
+          return frag;
+        }
+
+        const el = document.createElement(tag.toLowerCase());
+        if (node.hasAttribute("class")) {
+          const classes = node.getAttribute("class")
+            .split(/\s+/)
+            .filter(Boolean)
+            .filter(name => /^[A-Za-z0-9_-]+$/.test(name))
+            .join(" ");
+          if (classes) el.setAttribute("class", classes);
+        }
+        node.childNodes.forEach(child => {
+          const cleaned = clean(child);
+          if (cleaned) el.appendChild(cleaned);
+        });
+        return el;
+      }
+
+      const out = document.createDocumentFragment();
+      template.content.childNodes.forEach(child => {
+        const cleaned = clean(child);
+        if (cleaned) out.appendChild(cleaned);
+      });
+      const holder = document.createElement("div");
+      holder.appendChild(out);
+      return holder.innerHTML;
+    }
+
+    function applyRemoteContent(content) {
+      if (!content || typeof content !== "object") return;
+      editables.forEach(el => {
+        const value = content[el.dataset.editId];
+        if (typeof value === "string") el.innerHTML = sanitizeRichText(value);
+      });
+    }
+
+    function collectCloudContent() {
+      const content = {};
+      editables.forEach(el => {
+        content[el.dataset.editId] = sanitizeRichText(el.innerHTML);
+      });
+      return content;
+    }
+
+    async function loadRemoteContent() {
+      if (!remotePublic) return null;
+      try {
+        const response = await fetch(CARD_API + "/content", { cache: "no-store" });
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        const data = await response.json();
+        if (data && data.content) applyRemoteContent(data.content);
+        if (data && data.updatedAt) cloudSavedAt = data.updatedAt;
+        return data;
+      } catch (error) {
+        console.warn("Cloud content unavailable; using inline fallback text.", error);
+        return null;
+      }
+    }
+
+    function setCloudEditing(next) {
+      cloudEditing = Boolean(next);
+      document.body.classList.toggle("is-editing", cloudEditing);
+      editToolbar.classList.toggle("is-active", cloudEditing);
+      editPanel.hidden = !cloudEditing;
+      editToggle.setAttribute("aria-expanded", String(cloudEditing && !editPanel.hidden));
+      if (editToggleLabel) editToggleLabel.textContent = cloudEditing ? "收起" : "编辑文字";
+
+      editables.forEach(el => {
+        if (cloudEditing) {
+          el.setAttribute("contenteditable", "true");
+          el.setAttribute("spellcheck", "false");
+          el.addEventListener("input", handleCloudInput);
+          el.addEventListener("paste", handleEditPaste);
+        } else {
+          el.removeAttribute("contenteditable");
+          el.removeAttribute("spellcheck");
+          el.removeEventListener("input", handleCloudInput);
+          el.removeEventListener("paste", handleEditPaste);
+        }
+      });
+
+      if (cloudEditing) {
+        setEditStatus("点击页面文字直接修改，改完点「保存到云端」");
+      } else if (cloudDirty) {
+        setEditStatus("有未保存修改，点「编辑文字」继续");
+      } else {
+        setEditStatus("已退出编辑");
+      }
+    }
+
+    function handleCloudInput() {
+      cloudDirty = true;
+      setEditStatus("有未保存修改，记得点「保存到云端」");
+    }
+
+    async function saveCloud() {
+      if (cloudSaving) return;
+      const content = collectCloudContent();
+      const total = Object.values(content).join("").length;
+      if (total > 50000) {
+        setEditStatus("文字超过 50,000 字，请精简后再保存");
+        return;
+      }
+
+      const saveButton = editPanel.querySelector('[data-edit-action="save"]');
+      cloudSaving = true;
+      if (saveButton) saveButton.disabled = true;
+      setEditStatus("正在保存到云端…");
+
+      try {
+        const response = await fetch(CARD_API + "/content", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + cloudToken
+          },
+          body: JSON.stringify({ content })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          if (response.status === 401) throw new Error("编辑链接无效或已过期");
+          if (response.status === 413) throw new Error("文字太多，保存被拒绝");
+          throw new Error(data.error || "保存失败");
+        }
+        cloudDirty = false;
+        cloudSavedAt = data.updatedAt || new Date().toISOString();
+        setEditStatus("已保存到云端 · 所有访客刷新后可见");
+      } catch (error) {
+        setEditStatus("保存失败：" + error.message);
+      } finally {
+        cloudSaving = false;
+        if (saveButton) saveButton.disabled = false;
+      }
+    }
+
+    function finishCloudEditing() {
+      if (cloudDirty && !window.confirm("还有未保存的修改，确定退出编辑吗？未保存的内容会丢失。")) return;
+      cloudDirty = false;
+      setCloudEditing(false);
+    }
+
+    function setupCloudEditor() {
+      editToolbar.hidden = false;
+      editToolbar.style.display = "";
+      editToolbar.classList.add("is-cloud");
+
+      const hints = editToolbar.querySelectorAll(".edit-hint");
+      if (hints[0]) hints[0].textContent = "点击页面上的标题、简介、价目、标签等静态文字即可修改；改完点「保存到云端」，所有访客刷新后可见。";
+      if (hints[1]) hints[1].textContent = "编辑链接就是权限，请勿转发给不需要编辑的人。聊天记录、心率等动态内容仍由程序控制。";
+
+      const saveButton = editPanel.querySelector('[data-edit-action="save"]');
+      const fileButton = editPanel.querySelector('[data-edit-action="file"]');
+      const resetButton = editPanel.querySelector('[data-edit-action="reset"]');
+      const doneButton = editPanel.querySelector('[data-edit-action="done"]');
+      if (saveButton) saveButton.textContent = "保存到云端";
+      if (fileButton) fileButton.style.display = "none";
+      if (resetButton) resetButton.style.display = "none";
+      if (doneButton) doneButton.textContent = "完成";
+
+      setEditStatus("编辑链接已生效，点击「编辑文字」开始修改");
+
+      editToggle.addEventListener("click", () => {
+        if (!cloudEditing) {
+          setCloudEditing(true);
+          return;
+        }
+        const willOpen = editPanel.hidden;
+        editPanel.hidden = !willOpen;
+        editToggle.setAttribute("aria-expanded", String(willOpen));
+        if (editToggleLabel) editToggleLabel.textContent = willOpen ? "收起" : "编辑中";
+        setEditStatus(willOpen ? "点击页面文字直接修改，改完点「保存到云端」" : "工具栏已收起，点「编辑中」展开");
+      });
+
+      if (saveButton) saveButton.addEventListener("click", saveCloud);
+      if (doneButton) doneButton.addEventListener("click", finishCloudEditing);
+
+      window.addEventListener("beforeunload", (event) => {
+        if (!cloudDirty) return;
+        event.preventDefault();
+        event.returnValue = "";
+      });
+
+      document.addEventListener("keydown", (event) => {
+        const modifier = event.ctrlKey || event.metaKey;
+        if (!modifier) return;
+        const key = event.key.toLowerCase();
+        if (key === "s" && cloudEditing) {
+          event.preventDefault();
+          saveCloud();
+        } else if (key === "e") {
+          event.preventDefault();
+          setCloudEditing(!cloudEditing);
+        }
+      });
+
+      loadRemoteContent().then(data => {
+        if (!data) setEditStatus("云端读取失败，当前显示页面内置文字；仍可尝试保存");
+      });
     }
 
     function setEditMode(next) {
@@ -4050,6 +4300,22 @@ body.is-editing .edit-toggle{
 
     editables = collectEditables();
     assignEditIds();
+
+    // Hosted editing: only a valid edit link (with token) shows the editor.
+    if (cloudMode) {
+      setupCloudEditor();
+      return;
+    }
+
+    // Hosted public view: read cloud content, then stay read-only.
+    if (hostedView || shareView === "1" || shareView === "true") {
+      if (remotePublic) loadRemoteContent();
+      return;
+    }
+
+    // Local file: keep the original local editor / export workflow.
+    editToolbar.hidden = false;
+    editToolbar.style.display = "";
     loadSavedEdits();
 
     editToggle.addEventListener("click", () => {
@@ -4097,4 +4363,4 @@ body.is-editing .edit-toggle{
 </script>
 
 
-</body><browser-skill-overlay aria-hidden="true" data-bsk-overlay=""></browser-skill-overlay></html>
+</body></html>
