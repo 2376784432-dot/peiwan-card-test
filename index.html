@@ -2606,8 +2606,9 @@ input[type="range"].pain-slider:focus-visible{ outline:1px solid rgba(234,217,21
    ========================================================= */
 .edit-toolbar{
   position:fixed;
-  right:20px;
-  bottom:54px;
+  right:calc(13% + 8px);
+  top:calc(8.5% + 8px);
+  bottom:auto;
   z-index:200;
   font-family:var(--mono);
   color:#e8dfd0;
@@ -2643,7 +2644,8 @@ input[type="range"].pain-slider:focus-visible{ outline:1px solid rgba(234,217,21
 .edit-panel{
   position:absolute;
   right:0;
-  bottom:calc(100% + 9px);
+  top:calc(100% + 9px);
+  bottom:auto;
   width:286px;
   max-height:calc(100vh - 90px);
   overflow-y:auto;
@@ -2723,8 +2725,8 @@ body.is-editing .edit-toggle{
 }
 @media (max-width:720px){
   .edit-toolbar{
-    right:12px;
-    top:12px;
+    right:calc(7% + 2px);
+    top:calc(7.5% + 6px);
     bottom:auto;
   }
   .edit-panel{
@@ -2733,13 +2735,20 @@ body.is-editing .edit-toggle{
     width:min(296px,calc(100vw - 24px));
   }
   .edit-toggle{
-    padding:8px 11px;
-    font-size:8px;
+    padding:10px 13px;
+    font-size:10px;
+    letter-spacing:.12em;
+    background:rgba(201,169,110,.94);
+    color:#0b0b0c;
+    border-color:#f0d9a6;
+    box-shadow:0 8px 28px rgba(0,0,0,.55), 0 0 0 4px rgba(201,169,110,.12);
   }
+  .edit-toggle .edit-pencil{ color:#0b0b0c; font-size:14px; }
+  body.is-editing .edit-toggle{ background:rgba(201,169,110,.94); color:#0b0b0c; }
   .edit-hint{ font-size:8px; }
 }
 </style>
-<style wxt-shadow-root-document-styles="io2girmigga">@property --tw-translate-x{syntax:"*";inherits:false;initial-value:0}@property --tw-translate-y{syntax:"*";inherits:false;initial-value:0}@property --tw-translate-z{syntax:"*";inherits:false;initial-value:0}@property --tw-rotate-x{syntax:"*";inherits:false}@property --tw-rotate-y{syntax:"*";inherits:false}@property --tw-rotate-z{syntax:"*";inherits:false}@property --tw-skew-x{syntax:"*";inherits:false}@property --tw-skew-y{syntax:"*";inherits:false}@property --tw-space-y-reverse{syntax:"*";inherits:false;initial-value:0}@property --tw-divide-x-reverse{syntax:"*";inherits:false;initial-value:0}@property --tw-border-style{syntax:"*";inherits:false;initial-value:solid}@property --tw-divide-y-reverse{syntax:"*";inherits:false;initial-value:0}@property --tw-leading{syntax:"*";inherits:false}@property --tw-font-weight{syntax:"*";inherits:false}@property --tw-tracking{syntax:"*";inherits:false}@property --tw-ordinal{syntax:"*";inherits:false}@property --tw-slashed-zero{syntax:"*";inherits:false}@property --tw-numeric-figure{syntax:"*";inherits:false}@property --tw-numeric-spacing{syntax:"*";inherits:false}@property --tw-numeric-fraction{syntax:"*";inherits:false}@property --tw-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-shadow-color{syntax:"*";inherits:false}@property --tw-shadow-alpha{syntax:"<percentage>";inherits:false;initial-value:100%}@property --tw-inset-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-inset-shadow-color{syntax:"*";inherits:false}@property --tw-inset-shadow-alpha{syntax:"<percentage>";inherits:false;initial-value:100%}@property --tw-ring-color{syntax:"*";inherits:false}@property --tw-ring-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-inset-ring-color{syntax:"*";inherits:false}@property --tw-inset-ring-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-ring-inset{syntax:"*";inherits:false}@property --tw-ring-offset-width{syntax:"<length>";inherits:false;initial-value:0}@property --tw-ring-offset-color{syntax:"*";inherits:false;initial-value:#fff}@property --tw-ring-offset-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-outline-style{syntax:"*";inherits:false;initial-value:solid}@property --tw-blur{syntax:"*";inherits:false}@property --tw-brightness{syntax:"*";inherits:false}@property --tw-contrast{syntax:"*";inherits:false}@property --tw-grayscale{syntax:"*";inherits:false}@property --tw-hue-rotate{syntax:"*";inherits:false}@property --tw-invert{syntax:"*";inherits:false}@property --tw-opacity{syntax:"*";inherits:false}@property --tw-saturate{syntax:"*";inherits:false}@property --tw-sepia{syntax:"*";inherits:false}@property --tw-drop-shadow{syntax:"*";inherits:false}@property --tw-drop-shadow-color{syntax:"*";inherits:false}@property --tw-drop-shadow-alpha{syntax:"<percentage>";inherits:false;initial-value:100%}@property --tw-drop-shadow-size{syntax:"*";inherits:false}@property --tw-backdrop-blur{syntax:"*";inherits:false}@property --tw-backdrop-brightness{syntax:"*";inherits:false}@property --tw-backdrop-contrast{syntax:"*";inherits:false}@property --tw-backdrop-grayscale{syntax:"*";inherits:false}@property --tw-backdrop-hue-rotate{syntax:"*";inherits:false}@property --tw-backdrop-invert{syntax:"*";inherits:false}@property --tw-backdrop-opacity{syntax:"*";inherits:false}@property --tw-backdrop-saturate{syntax:"*";inherits:false}@property --tw-backdrop-sepia{syntax:"*";inherits:false}@property --tw-duration{syntax:"*";inherits:false}@property --tw-ease{syntax:"*";inherits:false}</style></head>
+</head>
 <body data-doc-id="three-birds-mvgxd5c9" class="">
 
 <!-- =======================================================
